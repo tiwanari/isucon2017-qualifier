@@ -33,6 +33,8 @@ const (
 var (
 	db            *sqlx.DB
 	ErrBadReqeust = echo.NewHTTPError(http.StatusBadRequest)
+	rootPath      = os.Getenv("ISUBATA_ROOT")
+	iconPath      = rootPath + "/public/icons"
 )
 
 type Renderer struct {
@@ -209,7 +211,38 @@ func getInitialize(c echo.Context) error {
 	db.MustExec("DELETE FROM channel WHERE id > 10")
 	db.MustExec("DELETE FROM message WHERE id > 10000")
 	db.MustExec("DELETE FROM haveread")
+
+	type Icon struct {
+		ID   int64  `db:"id"`
+		Name string `db:"name"`
+		Data []byte `db:"data"`
+	}
+
+	icons := []Icon{}
+	err := db.Select(&icons, "SELECT * FROM image")
+	if err != nil {
+		return err
+	}
+
+	for _, v := range icons {
+		if err = saveIcon(v.Data, v.Name); err != nil {
+			return err
+		}
+	}
+
 	return c.String(204, "")
+}
+
+func saveIcon(src []byte, name string) error {
+	dst, err := os.Create(iconPath + "/" + name)
+	if err != nil {
+		return err
+	}
+	if _, err = io.Copy(dst, bytes.NewReader(src)); err != nil {
+		return err
+	}
+	defer dst.Close()
+	return nil
 }
 
 func getIndex(c echo.Context) error {
@@ -653,18 +686,13 @@ func postProfile(c echo.Context) error {
 			return err
 		}
 		avatarData, _ = ioutil.ReadAll(file)
+
 		// ファイル作成
 		sum := sha1.Sum(avatarData)
 		avatarName = fmt.Sprintf("%x%s", sum, ext)
-		dst, err := os.Create(avatarName)
-		if err != nil {
+		if err = saveIcon(avatarData, avatarName); err != nil {
 			return err
 		}
-		// 中身の流し込み
-		if _, err = io.Copy(dst, bytes.NewReader(avatarData)); err != nil {
-			return err
-		}
-		defer dst.Close()
 		file.Close()
 
 		if len(avatarData) > avatarMaxBytes {
@@ -696,7 +724,7 @@ func postProfile(c echo.Context) error {
 func getIcon(c echo.Context) error {
 	// ファイル読み込み
 	name := c.Param("file_name")
-	data, err := ioutil.ReadFile(c.Param("file_name"))
+	data, err := ioutil.ReadFile(iconPath + "/" + c.Param("file_name"))
 	if err != nil {
 		if os.IsExist(err) {
 			return echo.ErrNotFound
