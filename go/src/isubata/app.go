@@ -24,6 +24,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/middleware"
+	"github.com/patrickmn/go-cache"
 )
 
 const (
@@ -35,6 +36,7 @@ var (
 	ErrBadReqeust = echo.NewHTTPError(http.StatusBadRequest)
 	rootPath      = os.Getenv("ISUBATA_ROOT")
 	iconPath      = rootPath + "/public/icons"
+	cacheStore    = cache.New(5*time.Minute, 10*time.Minute)
 )
 
 type Renderer struct {
@@ -386,11 +388,21 @@ func postMessage(c echo.Context) error {
 
 func jsonifyMessage(m Message) (map[string]interface{}, error) {
 	u := User{}
+	userCache, exists := cacheStore.Get("User" + string(m.UserID))
+	if exists {
+		r := make(map[string]interface{})
+		r["id"] = userCache.(User).ID
+		r["user"] = userCache
+		r["date"] = m.CreatedAt.Format("2006/01/02 15:04:05")
+		r["content"] = m.Content
+		return r, nil
+	}
 	err := db.Get(&u, "SELECT name, display_name, avatar_icon FROM user WHERE id = ?",
 		m.UserID)
 	if err != nil {
 		return nil, err
 	}
+	cacheStore.Set("User"+string(m.UserID), u, -1)
 
 	r := make(map[string]interface{})
 	r["id"] = m.ID
