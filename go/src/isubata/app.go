@@ -212,23 +212,23 @@ func getInitialize(c echo.Context) error {
 	db.MustExec("DELETE FROM message WHERE id > 10000")
 	db.MustExec("DELETE FROM haveread")
 
-	type Icon struct {
-		ID   int64  `db:"id"`
-		Name string `db:"name"`
-		Data []byte `db:"data"`
-	}
+	// type Icon struct {
+	// 	ID   int64  `db:"id"`
+	// 	Name string `db:"name"`
+	// 	Data []byte `db:"data"`
+	// }
 
-	icons := []Icon{}
-	err := db.Select(&icons, "SELECT * FROM image")
-	if err != nil {
-		return err
-	}
+	// icons := []Icon{}
+	// err := db.Select(&icons, "SELECT * FROM image")
+	// if err != nil {
+	// 	return err
+	// }
 
-	for _, v := range icons {
-		if err = saveIcon(v.Data, v.Name); err != nil {
-			return err
-		}
-	}
+	// for _, v := range icons {
+	// 	if err = saveIcon(v.Data, v.Name); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return c.String(204, "")
 }
