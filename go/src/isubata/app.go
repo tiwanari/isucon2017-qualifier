@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"bytes"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gorilla/sessions"
 	"github.com/jmoiron/sqlx"
@@ -652,13 +653,23 @@ func postProfile(c echo.Context) error {
 			return err
 		}
 		avatarData, _ = ioutil.ReadAll(file)
+		// ファイル作成
+		sum := sha1.Sum(avatarData)
+		avatarName = fmt.Sprintf("%x%s", sum, ext)
+		dst, err := os.Create(avatarName)
+		if err != nil {
+			return err
+		}
+		// 中身の流し込み
+		if _, err = io.Copy(dst, bytes.NewReader(avatarData)); err != nil {
+			return err
+		}
+		defer dst.Close()
 		file.Close()
 
 		if len(avatarData) > avatarMaxBytes {
 			return ErrBadReqeust
 		}
-
-		avatarName = fmt.Sprintf("%x%s", sha1.Sum(avatarData), ext)
 	}
 
 	if avatarName != "" && len(avatarData) > 0 {
@@ -683,15 +694,15 @@ func postProfile(c echo.Context) error {
 }
 
 func getIcon(c echo.Context) error {
-	var name string
-	var data []byte
-	err := db.QueryRow("SELECT name, data FROM image WHERE name = ?",
-		c.Param("file_name")).Scan(&name, &data)
-	if err == sql.ErrNoRows {
-		return echo.ErrNotFound
-	}
+	// ファイル読み込み
+	name := c.Param("file_name")
+	data, err := ioutil.ReadFile(c.Param("file_name"))
 	if err != nil {
-		return err
+		if os.IsExist(err) {
+			return echo.ErrNotFound
+		} else {
+			return err
+		}
 	}
 
 	mime := ""
